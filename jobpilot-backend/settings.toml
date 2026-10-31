@@ -1,0 +1,39 @@
+api_host = "127.0.0.1"
+api_port = 8000
+cors_origins = ["http://localhost:5173"]
+trusted_hosts = ["127.0.0.1", "localhost"]
+data_dir = "data"
+
+[http]
+timeout = 20
+retries = 3
+per_host = 1
+total = 4
+
+[discovery]
+keywords = ["software", "developer", "data", "machine learning", "ml", "ai", "genai", "llm", "security"]
+locations = ["India"]
+max_age_days = 30
+
+[cv]
+main_tex = 'E:\Job hunting\Bhortake_Jai_Resume\resume_faangpath.tex'
+
+[llm]
+active_preset = "free"
+
+[llm.presets.free]
+extract = "groq/openai/gpt-oss-120b"
+classify = "ollama/qwen3:4b"
+
+[llm.presets.local]
+extract = "ollama/qwen3:4b"
+classify = "ollama/qwen3:4b"
+
+[llm.presets.claude]
+extract = "anthropic/claude-haiku-5-5"
+classify = "anthropic/claude-haiku-5-5"
+
+[llm.budgets]
+groq = 7000
+ollama = 12000
+anthropic = 60000
