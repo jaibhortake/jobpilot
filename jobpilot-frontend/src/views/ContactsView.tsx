@@ -3,8 +3,10 @@ import { Mail, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
+import { Textarea } from '@/components/ui/textarea'
 import {
   type Company,
+  bulkContacts,
   createContact,
   deleteContact,
   findEmails,
@@ -15,6 +17,43 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+
+function BulkPaste({ onDone }: { onDone: () => void }) {
+  const [text, setText] = useState('')
+  const bulk = useMutation({
+    mutationFn: () => bulkContacts(text),
+    onSuccess: (r) => {
+      toast.success(
+        `${r.added} added, ${r.duplicates} already there` +
+          (r.by_company.Other ? `, ${r.by_company.Other} under Other` : ''),
+      )
+      setText('')
+      onDone()
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed'),
+  })
+  return (
+    <details className="rounded-md border p-3">
+      <summary className="cursor-pointer text-sm font-medium">Paste a list of emails</summary>
+      <div className="mt-2 space-y-2">
+        <Textarea
+          aria-label="Pasted emails"
+          rows={5}
+          placeholder="Paste as copied from your mail client, e.g. Name <a@b.com>, c@d.com"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Companies are matched by name from the email domain; anything unmatched goes under
+          &quot;Other&quot;. These are stored as verified and teach the email finder.
+        </p>
+        <Button disabled={!text.trim() || bulk.isPending} onClick={() => bulk.mutate()}>
+          Import
+        </Button>
+      </div>
+    </details>
+  )
+}
 
 function EmailFinder({ companies, onAdd }: { companies: Company[]; onAdd: () => void }) {
   const [companyId, setCompanyId] = useState('')
@@ -192,6 +231,7 @@ export function ContactsView() {
         </Button>
       </form>
 
+      <BulkPaste onDone={refresh} />
       <EmailFinder companies={companies.data ?? []} onAdd={refresh} />
 
       {contacts.isLoading ? (

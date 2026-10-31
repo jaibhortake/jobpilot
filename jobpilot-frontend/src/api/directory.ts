@@ -41,3 +41,12 @@ export type Guess = { email: string; pattern: string; confidence: string; note: 
 export type FindResult = { domain: string | null; domain_resolves: boolean; guesses: Guess[] }
 export const findEmails = (body: { company_id: number; full_name?: string; domain?: string }) =>
   apiSend<FindResult>('POST', '/api/contacts/find', body)
+
+export type BulkResult = {
+  added: number
+  duplicates: number
+  by_company: Record<string, number>
+  other_domains: string[]
+}
+export const bulkContacts = (text: string) =>
+  apiSend<BulkResult>('POST', '/api/contacts/bulk', { text })

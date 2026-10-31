@@ -194,9 +194,22 @@ def find_contact(body: FindIn, session: SessionDep) -> FindOut:
     if body.domain:  # the user confirms the domain once; it is then remembered
         company.domain = body.domain.lower()
         session.commit()
-    domain, guesses = email_finder.find_emails(company, body.full_name)
+    everyone = list(session.scalars(select(Contact)))
+    domain, guesses = email_finder.find_emails(company, body.full_name, everyone, body.domain)
     return FindOut(
         domain=domain,
         domain_resolves=bool(domain) and email_finder.domain_resolves(domain or ""),
         guesses=[GuessOut(**g.__dict__) for g in guesses],
     )
+
+
+class BulkIn(BaseModel):
+    text: str
+    aliases: dict[str, str] = {}
+
+
+@router.post("/contacts/bulk")
+def bulk_contacts(body: BulkIn, session: SessionDep) -> dict[str, object]:
+    from src.directory.email_import import import_pasted
+
+    return import_pasted(session, body.text, body.aliases).__dict__
