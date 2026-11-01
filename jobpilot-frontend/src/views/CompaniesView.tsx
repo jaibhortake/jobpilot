@@ -9,9 +9,11 @@ import {
   addSource,
   createCompany,
   deleteCompany,
+  deleteSource,
   importSheet,
   listCompanies,
   renameCompany,
+  updateSource,
 } from '@/api/directory'
 import { type Candidate, findCareers } from '@/api/jobs'
 import { EmptyState } from '@/components/EmptyState'
@@ -45,60 +47,150 @@ function checkSummary(s: Source): { text: string; tone: string } {
   return { text: `${s.last_status ?? 'failed'}${why} · ${when}`, tone: 'text-destructive' }
 }
 
-function CompanyName({ company, onRenamed, onError }: {
+type LinkDraft = { id: number | null; url: string; removed: boolean }
+
+function CompanyRow({ company, onChanged, onError, onDelete }: {
   company: Company
-  onRenamed: () => void
+  onChanged: () => void
   onError: (e: Error) => void
+  onDelete: () => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [name, setName] = useState(company.name)
-  const rename = useMutation({
-    mutationFn: () => renameCompany(company.id, name.trim()),
-    onSuccess: () => {
+  const [links, setLinks] = useState<LinkDraft[]>([])
+
+  function startEdit() {
+    setName(company.name)
+    setLinks([
+      ...company.sources.map((s) => ({ id: s.id, url: s.url, removed: false })),
+      { id: null, url: '', removed: false },
+    ])
+    setEditing(true)
+  }
+  const setLink = (i: number, patch: Partial<LinkDraft>) =>
+    setLinks((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)))
+
+  async function save() {
+    setSaving(true)
+    try {
+      if (name.trim() && name.trim() !== company.name) await renameCompany(company.id, name.trim())
+      for (const l of links) {
+        const url = l.url.trim()
+        const old = company.sources.find((s) => s.id === l.id)
+        if (l.id !== null && (l.removed || !url)) await deleteSource(l.id)
+        else if (l.id !== null && old && url !== old.url) await updateSource(l.id, url)
+        else if (l.id === null && url && !l.removed) await addSource(company.id, url)
+      }
       setEditing(false)
-      onRenamed()
-    },
-    onError,
-  })
-  if (!editing)
+    } catch (e) {
+      onError(e as Error)
+    } finally {
+      setSaving(false)
+      onChanged() // show whatever was saved before a failure
+    }
+  }
+
+  const buttons = (
+    <div className="flex gap-1">
+      {editing ? (
+        <>
+          <Button size="sm" disabled={saving} onClick={save}>
+            Save
+          </Button>
+          <Button size="sm" variant="outline" disabled={saving} onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Edit ${company.name}`}
+            onClick={startEdit}
+          >
+            <Pencil className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" aria-label={`Delete ${company.name}`} onClick={onDelete}>
+            <Trash2 className="size-4" />
+          </Button>
+        </>
+      )}
+    </div>
+  )
+
+  if (editing)
     return (
-      <span className="flex items-center gap-1">
-        {company.name}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6"
-          aria-label={`Rename ${company.name}`}
-          onClick={() => {
-            setName(company.name)
-            setEditing(true)
-          }}
-        >
-          <Pencil className="size-3" />
-        </Button>
-      </span>
+      <tr className="border-t align-top">
+        <td className="py-2">
+          <Input
+            className="h-8 w-48"
+            aria-label={`Name of ${company.name}`}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </td>
+        <td className="space-y-1 py-2">
+          {links.map((l, i) =>
+            l.removed ? null : (
+              <div key={l.id ?? 'new'} className="flex gap-1">
+                <Input
+                  className="h-8 max-w-md"
+                  placeholder={l.id === null ? 'Add a careers link' : 'Careers link'}
+                  aria-label={l.id === null ? `New careers link for ${company.name}` : `Careers link ${i + 1} of ${company.name}`}
+                  value={l.url}
+                  onChange={(e) => setLink(i, { url: e.target.value })}
+                />
+                {l.id !== null && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove link ${i + 1} of ${company.name}`}
+                    onClick={() => setLink(i, { removed: true })}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
+              </div>
+            ),
+          )}
+        </td>
+        <td className="py-2">{company.contact_count}</td>
+        <td className="py-2">{buttons}</td>
+      </tr>
     )
+
   return (
-    <form
-      className="flex gap-1"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (name.trim() && name.trim() !== company.name) rename.mutate()
-        else setEditing(false)
-      }}
-    >
-      <Input
-        className="h-7 w-44 text-sm"
-        aria-label={`New name for ${company.name}`}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
-        autoFocus
-      />
-      <Button type="submit" size="sm" variant="outline" disabled={rename.isPending}>
-        Save
-      </Button>
-    </form>
+    <tr className="border-t align-top">
+      <td className="py-2 font-medium">{company.name}</td>
+      <td className="space-y-1 py-2">
+        {company.sources.map((s) => {
+          const r = checkSummary(s)
+          return (
+            <div key={s.id}>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{s.ats_type}</Badge>
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="max-w-md truncate text-primary hover:underline"
+                >
+                  {s.url}
+                </a>
+              </div>
+              <div className={`text-xs ${r.tone}`}>{r.text}</div>
+            </div>
+          )
+        })}
+        {company.sources.length === 0 && (
+          <span className="text-xs text-muted-foreground">No careers link — use the pencil</span>
+        )}
+      </td>
+      <td className="py-2">{company.contact_count}</td>
+      <td className="py-2">{buttons}</td>
+    </tr>
   )
 }
 
@@ -156,7 +248,7 @@ function FindLinks({ companies, onAdded, onError }: {
             ) : failed ? (
               <p className="text-destructive">Search failed. Add a Brave API key, or paste a link.</p>
             ) : candidates.length === 0 ? (
-              <p className="text-muted-foreground">Nothing found. Paste a link in its row.</p>
+              <p className="text-muted-foreground">Nothing found. Use the pencil on its row to paste a link.</p>
             ) : (
               candidates.slice(0, 3).map((c) => (
                 <div key={c.url} className="flex items-center gap-2">
@@ -172,44 +264,6 @@ function FindLinks({ companies, onAdded, onError }: {
         ))}
       </div>
     </details>
-  )
-}
-
-function AddLink({ companyId, onAdded, onError }: {
-  companyId: number
-  onAdded: () => void
-  onError: (e: Error) => void
-}) {
-  const [url, setUrl] = useState('')
-  const add = useMutation({
-    mutationFn: () => addSource(companyId, url.trim()),
-    onSuccess: () => {
-      setUrl('')
-      onAdded()
-    },
-    onError,
-  })
-  return (
-    <form
-      className="flex gap-1"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (url.trim()) add.mutate()
-      }}
-    >
-      <Input
-        className="h-7 max-w-xs text-xs"
-        placeholder="Add careers link"
-        aria-label={`Add careers link for company ${companyId}`}
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
-      {url.trim() && (
-        <Button type="submit" size="sm" variant="outline" disabled={add.isPending}>
-          Add
-        </Button>
-      )}
-    </form>
   )
 }
 
@@ -328,44 +382,13 @@ export function CompaniesView() {
           </thead>
           <tbody>
             {rows.map((c) => (
-              <tr key={c.id} className="border-t align-top">
-                <td className="py-2 font-medium">
-                  <CompanyName company={c} onRenamed={refresh} onError={fail} />
-                </td>
-                <td className="space-y-1 py-2">
-                  {c.sources.map((s) => {
-                    const r = checkSummary(s)
-                    return (
-                      <div key={s.id}>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">{s.ats_type}</Badge>
-                          <a
-                            href={s.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="max-w-md truncate text-primary hover:underline"
-                          >
-                            {s.url}
-                          </a>
-                        </div>
-                        <div className={`text-xs ${r.tone}`}>{r.text}</div>
-                      </div>
-                    )
-                  })}
-                  <AddLink companyId={c.id} onAdded={refresh} onError={fail} />
-                </td>
-                <td className="py-2">{c.contact_count}</td>
-                <td className="py-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete ${c.name}`}
-                    onClick={() => setToDelete({ id: c.id, name: c.name })}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </td>
-              </tr>
+              <CompanyRow
+                key={c.id}
+                company={c}
+                onChanged={refresh}
+                onError={fail}
+                onDelete={() => setToDelete({ id: c.id, name: c.name })}
+              />
             ))}
           </tbody>
         </table>

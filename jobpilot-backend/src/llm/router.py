@@ -12,8 +12,32 @@ from src.llm.errors import LlmBadOutput, LlmUnavailable, RateLimited, RequestToo
 LlmTask = Literal["extract", "classify"]
 T = TypeVar("T", bound=BaseModel)
 
-# runtime overrides (preset name / per-task model); the settings API writes these
+# Preset name / per-task model overrides; the settings API writes these. They are saved to
+# data/llm_state.json so the choice made in the UI survives a restart.
+STATE_FILE = Path(__file__).resolve().parents[2] / "data" / "llm_state.json"
+KEEP_ALIVE = "30m"  # how long Ollama keeps the model loaded after its last call
 _state: dict[str, Any] = {"preset": None, "overrides": {}}
+
+
+def _load_state() -> None:
+    try:
+        saved = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    preset = saved.get("preset")
+    if isinstance(preset, str) and preset in settings.llm.presets:
+        _state["preset"] = preset
+    overrides = saved.get("overrides")
+    if isinstance(overrides, dict):
+        _state["overrides"] = {str(k): str(v) for k, v in overrides.items()}
+
+
+def _save_state() -> None:
+    try:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.write_text(json.dumps(_state), encoding="utf-8")
+    except OSError:
+        pass  # the choice still applies until the next restart
 
 
 def active_preset() -> str:
@@ -25,6 +49,10 @@ def set_state(preset: str | None, overrides: dict[str, str] | None) -> None:
         _state["preset"] = preset
     if overrides is not None:
         _state["overrides"] = overrides
+    _save_state()
+
+
+_load_state()
 
 
 def model_for(task: LlmTask) -> str:
@@ -77,7 +105,7 @@ async def complete(
         kwargs["api_base"] = os.environ.get("OLLAMA_API_BASE") or settings.get(
             "OLLAMA_API_BASE", "http://localhost:11434"
         )
-        kwargs["extra_body"] = {"think": False}
+        kwargs["extra_body"] = {"think": False, "keep_alive": KEEP_ALIVE}
     elif model.startswith("groq/"):
         kwargs["api_key"] = os.environ.get("GROQ_API_KEY") or settings.get("GROQ_API_KEY")
     elif model.startswith("anthropic/"):

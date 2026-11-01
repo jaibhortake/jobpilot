@@ -97,6 +97,25 @@ def add_source(session: Session, company: Company, url: str) -> CareerSource:
     return source
 
 
+def update_source(session: Session, source: CareerSource, url: str) -> CareerSource:
+    """Point a source at a new link: re-detect its platform and forget the old check result."""
+    url = safe_http_url(url)
+    if url == source.url:
+        return source
+    clash = session.scalar(
+        select(CareerSource).where(CareerSource.url == url, CareerSource.id != source.id)
+    )
+    if clash:
+        raise Duplicate("duplicate_url")
+    ats, config = detect(url)
+    source.url, source.ats_type, source.ats_config = url, ats, dict(config)
+    source.last_check_at = source.last_success_at = None
+    source.last_status, source.last_error = "never", None
+    source.last_found = source.last_kept = None
+    session.flush()
+    return source
+
+
 def add_contact(
     session: Session, company: Company, email: str, name: str | None, origin: str = "manual"
 ) -> Contact:

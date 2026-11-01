@@ -146,6 +146,23 @@ def add_source(company_id: int, body: SourceIn, session: SessionDep) -> SourceOu
     return _source_out(source)
 
 
+@router.patch("/sources/{source_id}")
+def update_source(source_id: int, body: SourceIn, session: SessionDep) -> SourceOut:
+    source = session.get(CareerSource, source_id)
+    if not source:
+        raise HTTPException(404, "source_not_found")
+    try:
+        service.update_source(session, source, body.url)
+    except UnsafeUrl as exc:
+        session.rollback()
+        raise HTTPException(422, "unsafe_url") from exc
+    except service.Duplicate as exc:
+        session.rollback()
+        raise HTTPException(409, exc.code) from exc
+    session.commit()
+    return _source_out(source)
+
+
 @router.delete("/sources/{source_id}", status_code=204)
 def delete_source(source_id: int, session: SessionDep) -> None:
     source = session.get(CareerSource, source_id)

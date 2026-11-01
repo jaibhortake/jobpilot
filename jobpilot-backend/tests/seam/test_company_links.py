@@ -34,6 +34,26 @@ async def test_bad_link_does_not_leave_a_company_behind(client: httpx.AsyncClien
     assert (await client.get("/api/companies")).json() == []
 
 
+async def test_replace_a_careers_link_resets_its_check_result(client: httpx.AsyncClient) -> None:
+    co = (await client.post(
+        "/api/companies", json={"name": "Acme", "url": "https://acme.example/careers"}, headers=H
+    )).json()
+    sid = co["sources"][0]["id"]
+    new = "https://acme.wd1.myworkdayjobs.com/en-US/Ext"
+    r = await client.patch(f"/api/sources/{sid}", json={"url": new}, headers=H)
+    assert r.status_code == 200 and r.json()["url"] == new and r.json()["ats_type"] == "workday"
+    assert r.json()["last_status"] == "never"
+    other = (await client.post("/api/companies", json={"name": "B", "url": "https://b.example/c"},
+                               headers=H)).json()
+    clash = await client.patch(f"/api/sources/{other['sources'][0]['id']}", json={"url": new},
+                               headers=H)
+    assert clash.status_code == 409
+    bad = await client.patch(f"/api/sources/{sid}", json={"url": "ftp://x"}, headers=H)
+    assert bad.status_code == 422
+    missing = await client.patch("/api/sources/9999", json={"url": new}, headers=H)
+    assert missing.status_code == 404
+
+
 async def test_check_by_partial_name_without_link_reports_no_sources(
     client: httpx.AsyncClient,
 ) -> None:

@@ -36,7 +36,9 @@ export const renameCompany = (id: number, name: string) =>
 export const deleteCompany =(id: number) => apiSend<void>('DELETE', `/api/companies/${id}`)
 export const addSource = (companyId: number, url: string) =>
   apiSend<Source>('POST', `/api/companies/${companyId}/sources`, { url })
-export const deleteSource = (id: number) => apiSend<void>('DELETE', `/api/sources/${id}`)
+export const updateSource = (id: number, url: string) =>
+  apiSend<Source>('PATCH', `/api/sources/${id}`, { url })
+export const deleteSource =(id: number) => apiSend<void>('DELETE', `/api/sources/${id}`)
 export const importSheet = (file: File) => {
   const form = new FormData()
   form.append('file', file)

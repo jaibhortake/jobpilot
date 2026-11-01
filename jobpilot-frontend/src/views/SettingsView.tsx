@@ -18,7 +18,11 @@ function ModelPresets() {
   const llm = useQuery({ queryKey: ['llm'], queryFn: getLlm })
   const pick = useMutation({
     mutationFn: putLlm,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['llm'] }),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['llm'] })
+      toast.success(`Using the ${r.active_preset} model preset`)
+    },
+    onError: () => toast.error('Could not change the model. Is the backend running?'),
   })
   const test = useMutation({
     mutationFn: testLlm,
