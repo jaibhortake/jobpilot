@@ -60,13 +60,6 @@ export const getJob = (id: number) => apiGet<JobDetail>(`/api/jobs/${id}`)
 export const dismissJob = (id: number) => apiSend<Job>('POST', `/api/jobs/${id}/dismiss`)
 export const setDescription = (id: number, text: string) =>
   apiSend<Job>('PUT', `/api/jobs/${id}/description`, { text })
-export const addManualJob = (body: {
-  company_name: string
-  title: string
-  url?: string
-  location?: string
-  description?: string
-}) => apiSend<Job>('POST', '/api/jobs/manual', body)
 
 export const checkByInput = (body: { company_name?: string; url?: string }) =>
   apiSend<{ runs: Run[] }>('POST', '/api/checks/by-input', body)

@@ -42,24 +42,63 @@ export function CheckCompanyDialog({
   useEffect(() => {
     if (!runs.length || !running) return
     const t = setInterval(async () => {
-      const next = await Promise.all(runs.map((r) => getRun(r.id)))
+      let next: Run[]
+      try {
+        next = await Promise.all(runs.map((r) => getRun(r.id)))
+      } catch {
+        setRuns([])
+        setError('Lost contact with the backend. Is it still running?')
+        return
+      }
       setRuns(next)
       if (next.every((r) => r.status !== 'running')) {
-        const failed = next.find((r) => r.status === 'failed')
+        const problem = next.find((r) => r.error)
+        const raw = next.reduce((n, r) => n + (r.stats.found_raw ?? 0), 0)
         const found = next.reduce((n, r) => n + (r.stats.kept ?? 0), 0)
         const added = next.reduce((n, r) => n + (r.stats.new ?? 0), 0)
-        if (failed) toast.error(`${failed.company}: ${failed.error}`)
-        else toast.success(`${next[0].company}: ${found} jobs, ${added} new`)
         qc.invalidateQueries({ queryKey: ['jobs'] })
         qc.invalidateQueries({ queryKey: ['companies'] })
+        if (problem && !found) {
+          // keep the dialog open so a better link can be pasted straight away
+          setRuns([])
+          setError(`${problem.company}: ${problem.error}`)
+          return
+        }
+        if (problem) toast.warning(`${problem.company}: ${problem.error}`)
+        if (found) toast.success(`${next[0].company}: ${found} jobs, ${added} new`)
+        else
+          toast.warning(
+            raw
+              ? `${next[0].company}: ${raw} jobs found, none in your locations`
+              : `${next[0].company}: no matching jobs right now`,
+          )
+        setRuns([])
+        setInput('')
         onDone()
+        onOpenChange(false)
       }
     }, 1500)
     return () => clearInterval(t)
-  }, [runs, running, qc, onDone])
+  }, [runs, running, qc, onDone, onOpenChange])
+
+  async function searchCareers(intro: string) {
+    setError('Searching for its careers page…')
+    try {
+      const found = await findCareers(input)
+      setCandidates(found)
+      setError(
+        found.length
+          ? `${intro} Pick its careers page:`
+          : `${intro} Nothing found. Paste its careers link instead and give the company name.`,
+      )
+    } catch {
+      setError(`${intro} Search failed. Paste its careers link instead and give the company name.`)
+    }
+  }
 
   async function start() {
     setError(null)
+    setCandidates([])
     try {
       const body = isUrl(input)
         ? { url: input.trim(), company_name: name }
@@ -68,22 +107,9 @@ export function CheckCompanyDialog({
       setRuns(res.runs)
     } catch (e) {
       const d = e instanceof ApiError ? e.detail : null
-      if (d === 'company_not_found') {
-        setError('Not in your list — searching for its careers page…')
-        try {
-          const found = await findCareers(input)
-          setCandidates(found)
-          setError(
-            found.length
-              ? 'Not in your list. Pick its careers page:'
-              : 'Nothing found. Paste its careers link instead and give the company name.',
-          )
-        } catch {
-          setError('Search failed. Paste its careers link instead and give the company name.')
-        }
-      } else if (d === 'company_name_required') setError('Enter the company name for this link.')
-      else if (d === 'no_sources')
-        setError('This company has no careers link yet. Add one on Companies.')
+      if (d === 'company_not_found') await searchCareers('Not in your list.')
+      else if (d === 'company_name_required') setError('Enter the company name for this link.')
+      else if (d === 'no_sources') await searchCareers('No careers link saved yet.')
       else if (d && typeof d === 'object' && 'code' in d) setError('A check is already running.')
       else setError(e instanceof Error ? e.message : 'Failed')
     }

@@ -30,6 +30,8 @@ def match_location(
     if any(w in ("india", "in") for w in wanted):
         wanted |= INDIA_ALIASES
     text = (location or "").lower()
+    if not text.strip() and not country:  # the page didn't say: keep it rather than lose the job
+        return LocationMatch(True, "location unknown")
     if country and country.lower() in wanted:
         return LocationMatch(True, "country matches")
     if re.search(r"\b\d+\s+locations?\b", text):

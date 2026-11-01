@@ -8,6 +8,8 @@ from src.db.models import CareerSource, Company, Contact
 from src.directory.ats_detect import detect
 from src.directory.importer import SheetParse
 
+OTHER = "Other"
+
 
 class Duplicate(Exception):
     def __init__(self, code: str) -> None:
@@ -26,6 +28,52 @@ class ImportResult:
     sources_created: int = 0
     contacts_created: int = 0
     unsafe_urls: list[str] = field(default_factory=list)
+
+
+def find_company(session: Session, name: str) -> Company | None:
+    """Exact name, else the only company whose name contains it ("rockwell" matches one)."""
+    key = name_key(name)
+    exact = session.scalar(select(Company).where(Company.name_key == key))
+    if exact or len(key) < 3:
+        return exact
+    hits = list(
+        session.scalars(select(Company).where(Company.name_key.contains(key, autoescape=True)))
+    )
+    return hits[0] if len(hits) == 1 else None
+
+
+def move_domain(session: Session, domain: str, target_name: str) -> int:
+    """Move every "Other" contact on this email domain to a company, creating it if needed."""
+    target = session.scalar(select(Company).where(Company.name_key == name_key(target_name)))
+    target = target or create_company(session, target_name)
+    if target.name == OTHER:
+        return 0
+    rows = session.scalars(
+        select(Contact).join(Company).where(
+            Company.name == OTHER, Contact.email.endswith(f"@{domain.lower()}", autoescape=True)
+        )
+    )
+    moved = 0
+    for contact in rows:
+        if session.scalar(
+            select(Contact).where(Contact.company_id == target.id, Contact.email == contact.email)
+        ):
+            session.delete(contact)  # already listed under the company
+        else:
+            contact.company_id = target.id
+        moved += 1
+    session.flush()
+    return moved
+
+
+def rename_company(session: Session, company: Company, name: str) -> Company:
+    key = name_key(name)
+    clash = session.scalar(select(Company).where(Company.name_key == key, Company.id != company.id))
+    if clash:
+        raise Duplicate("duplicate_company")
+    company.name, company.name_key = " ".join(name.split()), key
+    session.flush()
+    return company
 
 
 def create_company(session: Session, name: str) -> Company:

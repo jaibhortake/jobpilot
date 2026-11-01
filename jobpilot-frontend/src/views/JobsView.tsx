@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Briefcase, ExternalLink, Plus, Search, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Briefcase, ExternalLink, Search, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
   type Job,
-  addManualJob,
   aiMatch,
   coverLetter,
   dismissJob,
@@ -19,7 +18,6 @@ import { EmptyState } from '@/components/EmptyState'
 import { CheckCompanyDialog } from '@/components/jobs/CheckCompanyDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
@@ -63,91 +61,6 @@ function ScoreChip({ job }: { job: Job }) {
 const fmt = (iso: string) => new Date(iso).toLocaleDateString()
 const when = (j: Job) =>
   j.date_known && j.posted_at ? fmt(j.posted_at) : `first seen ${fmt(j.first_seen_at)}`
-
-function AddJobDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean
-  onOpenChange: (o: boolean) => void
-}) {
-  const qc = useQueryClient()
-  const [f, setF] = useState({
-    company_name: '',
-    title: '',
-    url: '',
-    location: '',
-    description: '',
-  })
-  const save = useMutation({
-    mutationFn: () =>
-      addManualJob({
-        company_name: f.company_name,
-        title: f.title,
-        url: f.url || undefined,
-        location: f.location || undefined,
-        description: f.description || undefined,
-      }),
-    onSuccess: () => {
-      toast.success('Job added')
-      qc.invalidateQueries({ queryKey: ['jobs'] })
-      qc.invalidateQueries({ queryKey: ['companies'] })
-      setF({ company_name: '', title: '', url: '', location: '', description: '' })
-      onOpenChange(false)
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed'),
-  })
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) =>
-    setF({ ...f, [k]: e.target.value })
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add job</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Input
-            aria-label="Company"
-            placeholder="Company *"
-            value={f.company_name}
-            onChange={set('company_name')}
-          />
-          <Input
-            aria-label="Title"
-            placeholder="Job title *"
-            value={f.title}
-            onChange={set('title')}
-          />
-          <Input
-            aria-label="Job link"
-            placeholder="Job link (optional)"
-            value={f.url}
-            onChange={set('url')}
-          />
-          <Input
-            aria-label="Location"
-            placeholder="Location (optional)"
-            value={f.location}
-            onChange={set('location')}
-          />
-          <Textarea
-            aria-label="Description"
-            placeholder="Paste the job description (optional)"
-            value={f.description}
-            onChange={set('description')}
-            rows={6}
-          />
-          <Button
-            disabled={!f.company_name.trim() || !f.title.trim() || save.isPending}
-            onClick={() => save.mutate()}
-          >
-            Save
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 function JobPanel({ id, onDismissed }: { id: number; onDismissed: () => void }) {
   const qc = useQueryClient()
@@ -318,7 +231,6 @@ export function JobsView() {
   const [companyId, setCompanyId] = useState<number | undefined>()
   const [selected, setSelected] = useState<number | null>(null)
   const [checkOpen, setCheckOpen] = useState(false)
-  const [addOpen, setAddOpen] = useState(false)
 
   const jobs = useQuery({
     queryKey: ['jobs', q, within, companyId, minScore, showFiltered, sort],
@@ -340,7 +252,7 @@ export function JobsView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target) || checkOpen || addOpen) return
+      if (isTypingTarget(e.target) || checkOpen) return
       const i = items.findIndex((j) => j.id === selected)
       if (e.key === 'ArrowDown') setSelected(items[Math.min(i + 1, items.length - 1)]?.id ?? null)
       else if (e.key === 'ArrowUp') setSelected(items[Math.max(i - 1, 0)]?.id ?? null)
@@ -408,9 +320,6 @@ export function JobsView() {
           </Button>
         )}
         <div className="ml-auto flex gap-2">
-          <Button variant="outline" onClick={() => setAddOpen(true)}>
-            <Plus /> Add job
-          </Button>
           <Button onClick={() => setCheckOpen(true)}>Check company</Button>
         </div>
       </div>
@@ -461,7 +370,6 @@ export function JobsView() {
         onOpenChange={setCheckOpen}
         onDone={() => setCompanyId(undefined)}
       />
-      <AddJobDialog open={addOpen} onOpenChange={setAddOpen} />
     </div>
   )
 }

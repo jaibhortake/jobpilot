@@ -1,11 +1,25 @@
-# Handoff: JobPilot (stopped 2026-10-27)
+# Handoff: JobPilot (updated 2026-11-01)
 
-## Where we are
-- Brainstorm done. Decision doc: `docs/decisions/2026-10-27-jobpilot.md` (still editable; it freezes when a plan leaves `docs/plans/new/`).
-- Plan draft: `docs/plans/new/jobpilot.md` (one big L plan, 11 phases). **Not approved, not frozen.**
-- An outside review (fresh-context model) returned 50 findings, about 25 of them major (listed below). Because the review rounds weren't converging, I proposed a split and **the user agreed**.
-- `jobpilot-backend/.env` exists with `GROQ_API_KEY` set and `OLLAMA_API_BASE=http://localhost:11434`; the DB URLs are empty. `jobpilot/.gitignore` excludes `.env`. Never print or overwrite `.env`.
-- No code has been written yet.
+## Current state (read this first; the sections below are history)
+- **The app is built and runs.** Backend `jobpilot-backend/` (FastAPI, Postgres, Alembic) and frontend `jobpilot-frontend/` (React 19, Vite). README.md has the run commands; the dev and test databases (`jobpilot`, `jobpilot_test`) exist and are migrated.
+- **Built:** company directory and sheet import, discovery readers (Workday, Oracle, SmartRecruiters, Ashby, Greenhouse, Lever, iCIMS, and a generic browser + LLM reader), scoring and feedback, tracker, contacts with bulk paste and email finder. Not built: CV tailoring / PDF (Part 2), embedding scoring, an Eightfold reader.
+- **2026-11-01 changes:**
+  - Companies: add with a careers link, add a link to any row, rename a company, a "last check" line under every link, and a "Find careers links" batch search whose results the user accepts one by one (nothing is added unconfirmed).
+  - Jobs: the "Add job" button and dialog were removed. The Check company dialog now shows the real error when a check yields nothing.
+  - Checks: the generic reader follows a careers landing page to its job search (up to 3 pages) and remembers it in `ats_config.listing_url`; postings with no location are kept; a name like "rockwell" resolves when only one company matches; stuck runs are marked failed.
+  - Contacts: "Sort Other emails" moves a whole email domain to a company (`POST /api/contacts/move-domain`); free-mail domains never teach the importer. On 2026-11-01 115 of 131 "Other" contacts were moved to named companies; 16 stay under Other on the user's instruction (gmail plus domains they could not name).
+- **Tests:** backend unit 39, seam 18 (run on `jobpilot_test` only; `conftest.py` refuses any other database); frontend 14. Run `uv run pytest -q`, `uv run ruff check src tests`, `uv run mypy src`, then `npm run test` and `npx tsc -b`.
+- **Open items:**
+  - **Brave search key:** `BRAVE_API_KEY` in `jobpilot-backend/.env` is empty, so careers search falls back to the flaky free DuckDuckGo search. The user must create a key and paste it into `.env`; never print `.env`.
+  - **Generic reader quality:** 74 of 124 sources are generic and depend on the LLM. Groq rate limits show as "skipped"; re-run after a minute.
+  - Frontend has no view or dialog tests yet.
+  - The `docs/plans/` files describe the original plan; code is the source of truth.
+- Rules still in force: ask before downloading or installing anything; never print or overwrite `.env`.
+
+## History (2026-10-27, superseded by the section above)
+- Brainstorm done. Decision doc: `docs/decisions/2026-10-27-jobpilot.md`.
+- An outside review returned 50 findings (listed below); the plan was split into 3 parts with the user's agreement.
+- At that time no code had been written.
 
 ## User rulings made today, after the plan was written (apply tomorrow)
 1. **Split the plan into 3 plans against the one decision doc:**

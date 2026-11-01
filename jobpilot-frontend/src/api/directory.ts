@@ -1,6 +1,15 @@
 import { apiGet, apiSend } from '@/api/client'
 
-export type Source = { id: number; url: string; ats_type: string }
+export type Source = {
+  id: number
+  url: string
+  ats_type: string
+  last_check_at: string | null
+  last_status: string | null
+  last_error: string | null
+  last_found: number | null
+  last_kept: number | null
+}
 export type Company = { id: number; name: string; sources: Source[]; contact_count: number }
 export type Contact = {
   id: number
@@ -20,8 +29,11 @@ export type ImportResult = {
 
 export const listCompanies = (q = '') =>
   apiGet<Company[]>(`/api/companies?q=${encodeURIComponent(q)}`)
-export const createCompany = (name: string) => apiSend<Company>('POST', '/api/companies', { name })
-export const deleteCompany = (id: number) => apiSend<void>('DELETE', `/api/companies/${id}`)
+export const createCompany = (body: { name: string; url?: string }) =>
+  apiSend<Company>('POST', '/api/companies', body)
+export const renameCompany = (id: number, name: string) =>
+  apiSend<Company>('PATCH', `/api/companies/${id}`, { name })
+export const deleteCompany =(id: number) => apiSend<void>('DELETE', `/api/companies/${id}`)
 export const addSource = (companyId: number, url: string) =>
   apiSend<Source>('POST', `/api/companies/${companyId}/sources`, { url })
 export const deleteSource = (id: number) => apiSend<void>('DELETE', `/api/sources/${id}`)
@@ -50,3 +62,5 @@ export type BulkResult = {
 }
 export const bulkContacts = (text: string) =>
   apiSend<BulkResult>('POST', '/api/contacts/bulk', { text })
+export const moveDomain = (domain: string, company_name: string) =>
+  apiSend<{ moved: number }>('POST', '/api/contacts/move-domain', { domain, company_name })

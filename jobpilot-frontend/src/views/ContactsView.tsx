@@ -6,17 +6,21 @@ import { ApiError } from '@/api/client'
 import { Textarea } from '@/components/ui/textarea'
 import {
   type Company,
+  type Contact,
   bulkContacts,
   createContact,
   deleteContact,
   findEmails,
   listCompanies,
   listContacts,
+  moveDomain,
 } from '@/api/directory'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+
+const FREE_MAIL = new Set(['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com'])
 
 function BulkPaste({ onDone }: { onDone: () => void }) {
   const [text, setText] = useState('')
@@ -51,6 +55,57 @@ function BulkPaste({ onDone }: { onDone: () => void }) {
           Import
         </Button>
       </div>
+    </details>
+  )
+}
+
+function SortOther({ contacts, onDone }: { contacts: Contact[]; onDone: () => void }) {
+  const [names, setNames] = useState<Record<string, string>>({})
+  const move = useMutation({
+    mutationFn: ({ domain, name }: { domain: string; name: string }) => moveDomain(domain, name),
+    onSuccess: (r, v) => {
+      toast.success(`${r.moved} moved to ${v.name}`)
+      onDone()
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed'),
+  })
+  const counts = new Map<string, number>()
+  for (const c of contacts) {
+    const domain = c.email.split('@')[1]
+    if (c.company === 'Other' && !FREE_MAIL.has(domain))
+      counts.set(domain, (counts.get(domain) ?? 0) + 1)
+  }
+  if (!counts.size) return null
+  return (
+    <details className="rounded-md border p-3">
+      <summary className="cursor-pointer text-sm font-medium">
+        Sort &quot;Other&quot; emails ({counts.size} domains)
+      </summary>
+      <ul className="mt-2 space-y-1">
+        {[...counts].map(([domain, n]) => (
+          <li key={domain} className="flex items-center gap-2 text-sm">
+            <span className="w-64 truncate">
+              {domain} ({n})
+            </span>
+            <Input
+              className="h-8 w-56"
+              list="other-company-names"
+              placeholder="Company name"
+              aria-label={`Company for ${domain}`}
+              value={names[domain] ?? ''}
+              onChange={(e) => setNames({ ...names, [domain]: e.target.value })}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!names[domain]?.trim() || move.isPending}
+              onClick={() => move.mutate({ domain, name: names[domain].trim() })}
+            >
+              Move
+            </Button>
+          </li>
+        ))}
+      </ul>
     </details>
   )
 }
@@ -232,6 +287,12 @@ export function ContactsView() {
       </form>
 
       <BulkPaste onDone={refresh} />
+      <datalist id="other-company-names">
+        {(companies.data ?? []).map((c) => (
+          <option key={c.id} value={c.name} />
+        ))}
+      </datalist>
+      <SortOther contacts={rows} onDone={refresh} />
       <EmailFinder companies={companies.data ?? []} onAdd={refresh} />
 
       {contacts.isLoading ? (

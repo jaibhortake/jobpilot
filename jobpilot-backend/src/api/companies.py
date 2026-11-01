@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -20,6 +21,11 @@ class SourceOut(BaseModel):
     id: int
     url: str
     ats_type: str
+    last_check_at: datetime | None = None
+    last_status: str | None = None
+    last_error: str | None = None
+    last_found: int | None = None
+    last_kept: int | None = None
 
 
 class ContactOut(BaseModel):
@@ -40,6 +46,7 @@ class CompanyOut(BaseModel):
 
 class CompanyIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+    url: str | None = None
 
 
 class SourceIn(BaseModel):
@@ -52,11 +59,19 @@ class ContactIn(BaseModel):
     name: str | None = None
 
 
+def _source_out(s: CareerSource) -> SourceOut:
+    return SourceOut(
+        id=s.id, url=s.url, ats_type=s.ats_type.value, last_check_at=s.last_check_at,
+        last_status=s.last_status, last_error=s.last_error, last_found=s.last_found,
+        last_kept=s.last_kept,
+    )
+
+
 def _company_out(c: Company) -> CompanyOut:
     return CompanyOut(
         id=c.id,
         name=c.name,
-        sources=[SourceOut(id=s.id, url=s.url, ats_type=s.ats_type.value) for s in c.sources],
+        sources=[_source_out(s) for s in c.sources],
         contact_count=len(c.contacts),
     )
 
@@ -87,7 +102,26 @@ def list_companies(session: SessionDep, q: str = "") -> list[CompanyOut]:
 def create_company(body: CompanyIn, session: SessionDep) -> CompanyOut:
     try:
         company = service.create_company(session, body.name)
+        if body.url and body.url.strip():
+            service.add_source(session, company, body.url)
+    except UnsafeUrl as exc:
+        session.rollback()
+        raise HTTPException(422, "unsafe_url") from exc
     except service.Duplicate as exc:
+        session.rollback()
+        raise HTTPException(409, exc.code) from exc
+    session.commit()
+    session.refresh(company)
+    return _company_out(company)
+
+
+@router.patch("/companies/{company_id}")
+def rename_company(company_id: int, body: CompanyIn, session: SessionDep) -> CompanyOut:
+    company = _get_company(session, company_id)
+    try:
+        service.rename_company(session, company, body.name)
+    except service.Duplicate as exc:
+        session.rollback()
         raise HTTPException(409, exc.code) from exc
     session.commit()
     return _company_out(company)
@@ -109,7 +143,7 @@ def add_source(company_id: int, body: SourceIn, session: SessionDep) -> SourceOu
     except service.Duplicate as exc:
         raise HTTPException(409, exc.code) from exc
     session.commit()
-    return SourceOut(id=source.id, url=source.url, ats_type=source.ats_type.value)
+    return _source_out(source)
 
 
 @router.delete("/sources/{source_id}", status_code=204)
@@ -201,6 +235,18 @@ def find_contact(body: FindIn, session: SessionDep) -> FindOut:
         domain_resolves=bool(domain) and email_finder.domain_resolves(domain or ""),
         guesses=[GuessOut(**g.__dict__) for g in guesses],
     )
+
+
+class MoveDomainIn(BaseModel):
+    domain: str = Field(pattern=r"^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+    company_name: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/contacts/move-domain")
+def move_domain(body: MoveDomainIn, session: SessionDep) -> dict[str, int]:
+    moved = service.move_domain(session, body.domain, body.company_name)
+    session.commit()
+    return {"moved": moved}
 
 
 class BulkIn(BaseModel):

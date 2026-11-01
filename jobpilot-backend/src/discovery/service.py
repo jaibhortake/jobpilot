@@ -263,23 +263,32 @@ async def run_check(run_id: int) -> None:
     if await cancel():
         # keep what was saved before; nothing is closed on cancel
         result.complete = False
-    await asyncio.to_thread(
-        persist, run_id, source_id, result.postings, result, q, probe.ats_config
-    )
-    await asyncio.to_thread(_set_phase, run_id, "describing")
     try:
-        async with get_client() as client:
-            await describe_missing(client, source_id)
-    except Exception:  # descriptions are best-effort; the crawl already succeeded
-        pass
-    await asyncio.to_thread(_set_phase, run_id, "scoring")
-    await asyncio.to_thread(_rescore)
-    await asyncio.to_thread(_finish, run_id, "cancelled" if await cancel() else "done")
+        await asyncio.to_thread(
+            persist, run_id, source_id, result.postings, result, q, probe.ats_config
+        )
+        await asyncio.to_thread(_set_phase, run_id, "describing")
+        try:
+            async with get_client() as client:
+                await describe_missing(client, source_id)
+        except Exception:  # descriptions are best-effort; the crawl already succeeded
+            pass
+        await asyncio.to_thread(_set_phase, run_id, "scoring")
+        await asyncio.to_thread(_rescore)
+        await asyncio.to_thread(_finish, run_id, "cancelled" if await cancel() else "done")
+    except Exception as exc:  # never leave a run stuck as "running"
+        await asyncio.to_thread(_fail, run_id, source_id, "error", f"{type(exc).__name__}: {exc}")
 
 
 def check_company(session: Session, company: Company) -> list[CheckRun]:
-    runs = []
+    runs: list[CheckRun] = []
+    busy: CheckRunning | None = None
     for src in company.sources:
         if src.enabled:
-            runs.append(start_check(session, src.id))
+            try:
+                runs.append(start_check(session, src.id))
+            except CheckRunning as exc:  # runs already started must still get their task
+                busy = exc
+    if busy and not runs:
+        raise busy
     return runs

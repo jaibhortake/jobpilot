@@ -80,16 +80,13 @@ def check_by_input(body: ByInput, session: SessionDep, bg: BackgroundTasks) -> R
             return _start(session, bg, src.company)
         if not name:
             raise HTTPException(422, "company_name_required")
-        found = session.scalar(
-            select(Company).where(Company.name_key == directory.name_key(name))
-        )
-        owner = found or directory.create_company(session, name)
+        owner = directory.find_company(session, name) or directory.create_company(session, name)
         directory.add_source(session, owner, url)
         session.commit()
         return _start(session, bg, owner)
     if not name:
         raise HTTPException(422, "company_name_required")
-    company = session.scalar(select(Company).where(Company.name_key == directory.name_key(name)))
+    company = directory.find_company(session, name)
     if not company:
         raise HTTPException(404, "company_not_found")
     return _start(session, bg, company)
@@ -103,10 +100,13 @@ class CandidateOut(BaseModel):
 
 @router.get("/companies/find-careers")
 async def find_careers(name: str) -> list[CandidateOut]:
-    from src.directory.careers_finder import find_careers_pages
+    from src.directory.careers_finder import SearchFailed, find_careers_pages
     from src.search.provider import get_search_provider
 
-    found = await find_careers_pages(name, get_search_provider())
+    try:
+        found = await find_careers_pages(name, get_search_provider())
+    except SearchFailed as exc:
+        raise HTTPException(502, "search_failed") from exc
     return [CandidateOut(url=c.url, title=c.title, ats_type=c.ats_type) for c in found]
 
 

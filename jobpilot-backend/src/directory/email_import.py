@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from src.db.models import Company, Contact
 from src.directory import service
 
-OTHER = "Other"
+OTHER = service.OTHER
+FREE_MAIL = {"gmail.com", "yahoo.com", "outlook.com", "hotmail.com"}
 _EMAIL = r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+"
 _ANGLE = re.compile(rf'(?:"([^"]*)"|([^,<>"]*?))\s*<\s*({_EMAIL})\s*>')
 _extract = tldextract.TLDExtract(suffix_list_urls=())  # bundled suffix list, no network
@@ -95,7 +96,7 @@ def import_pasted(
     # domains already seen on stored contacts keep their company (learned, not hardcoded)
     known = {
         c.email.rsplit("@", 1)[1]: c.company for c in session.scalars(select(Contact))
-        if c.company.name != OTHER
+        if c.company.name != OTHER and c.email.rsplit("@", 1)[1] not in FREE_MAIL
     }
     other: Company | None = next((c for c in companies if c.name == OTHER), None)
     for p in parse_pasted(text):
@@ -104,7 +105,7 @@ def import_pasted(
         if domain in alias:
             company = next((c for c in companies if _norm(c.name) == _norm(alias[domain])), None)
         company = company or known.get(domain)
-        if company is None and domain not in {"gmail.com", "yahoo.com", "outlook.com"}:
+        if company is None and domain not in FREE_MAIL:
             company = match_company(registrable_label(domain), companies)
         if company is None:
             if other is None:
@@ -119,7 +120,8 @@ def import_pasted(
         except service.Duplicate:
             result.duplicates += 1
             continue
-        known.setdefault(domain, company) if company.name != OTHER else None
+        if company.name != OTHER and domain not in FREE_MAIL:
+            known.setdefault(domain, company)
         result.added += 1
         result.by_company[company.name] = result.by_company.get(company.name, 0) + 1
     session.commit()

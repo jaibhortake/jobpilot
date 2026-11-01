@@ -13,6 +13,10 @@ AGGREGATORS = (
 )
 
 
+class SearchFailed(Exception):
+    pass
+
+
 @dataclass
 class Candidate:
     url: str
@@ -27,11 +31,14 @@ def _tokens(name: str) -> list[str]:
 
 async def find_careers_pages(name: str, provider: SearchProvider) -> list[Candidate]:
     hits = []
+    failure: Exception | None = None
     for q in (f"{name} careers jobs", f"{name} careers India"):
         try:
             hits += await provider.search(q, 8)
-        except Exception:  # search is best-effort; the user can still paste a link
-            continue
+        except Exception as exc:  # one query failing is fine; both failing is reported
+            failure = exc
+    if failure and not hits:
+        raise SearchFailed(str(failure)) from failure
     toks = _tokens(name)
     best: dict[str, Candidate] = {}
     for h in hits:
