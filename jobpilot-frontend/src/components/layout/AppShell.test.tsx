@@ -8,10 +8,10 @@ describe('AppShell', () => {
   it('lists the four navigation links by accessible name', () => {
     renderWithProviders(<AppShell />)
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const name of ['Jobs', 'Tracker', 'Companies', 'Contacts', 'CVs', 'Settings']) {
+    for (const name of ['Jobs', 'Tracker', 'Companies', 'Contacts', 'Apply profile', 'CVs', 'Settings']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
-    expect(within(nav).getAllByRole('link')).toHaveLength(6)
+    expect(within(nav).getAllByRole('link')).toHaveLength(7)
   })
 
   it('applies the dark class when Dark is chosen in the theme menu', async () => {

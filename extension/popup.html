@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 13px system-ui, sans-serif; width: 280px; margin: 12px; color: #111; }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  button { width: 100%; margin: 4px 0; padding: 7px; border: 1px solid #bbb; border-radius: 6px;
+           background: #f6f6f6; cursor: pointer; }
+  button.primary { background: #111; color: #fff; border-color: #111; }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { margin-top: 8px; min-height: 2em; white-space: pre-wrap; }
+  .legend span { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 3px 0 8px; }
+  label { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
+</style>
+</head>
+<body>
+  <h1>Apply Assist</h1>
+  <div id="site"></div>
+  <label><input type="checkbox" id="siteOn"> Enabled on this site</label>
+  <label><input type="checkbox" id="draft" checked> Draft long answers with AI</label>
+  <button id="fill" class="primary">Fill this form</button>
+  <button id="save">Save my answers</button>
+  <button id="applied">Mark applied</button>
+  <div class="legend"><span style="background:#16a34a"></span>sure<span style="background:#ca8a04"></span>check<span style="background:#dc2626"></span>empty</div>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

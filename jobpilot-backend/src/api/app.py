@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api import checks, companies, health, jobs, profile, settings_api
+from src.api import apply, checks, companies, health, jobs, profile, settings_api
 from src.config.settings import settings
 from src.discovery.service import recover_runs
 
@@ -47,6 +47,7 @@ def create_app(testing: bool = False) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
+        allow_origin_regex=r"chrome-extension://[a-p]{32}",  # the Apply Assist extension
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -58,6 +59,7 @@ def create_app(testing: bool = False) -> FastAPI:
     app.include_router(jobs.router, prefix="/api")
     app.include_router(profile.router, prefix="/api")
     app.include_router(settings_api.router, prefix="/api")
+    app.include_router(apply.router, prefix="/api")
     if testing:
         app.include_router(_testing_router(), prefix="/api")
     return app

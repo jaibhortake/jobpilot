@@ -3,6 +3,7 @@ import {
   Building2,
   FileText,
   ListChecks,
+  Send,
   Mail,
   Monitor,
   Moon,
@@ -37,6 +38,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { CompaniesView } from '@/views/CompaniesView'
+import { ApplyView } from '@/views/ApplyView'
 import { ContactsView } from '@/views/ContactsView'
 import { CvsView } from '@/views/CvsView'
 import { JobsView } from '@/views/JobsView'
@@ -48,6 +50,7 @@ const NAV = [
   { to: '/tracker', label: 'Tracker', icon: ListChecks },
   { to: '/companies', label: 'Companies', icon: Building2 },
   { to: '/contacts', label: 'Contacts', icon: Mail },
+  { to: '/apply', label: 'Apply profile', icon: Send },
   { to: '/cvs', label: 'CVs', icon: FileText },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
@@ -141,6 +144,7 @@ export function AppShell() {
               <Route path="/tracker" element={<TrackerView />} />
               <Route path="/companies" element={<CompaniesView />} />
               <Route path="/contacts" element={<ContactsView />} />
+              <Route path="/apply" element={<ApplyView />} />
               <Route path="/cvs" element={<CvsView />} />
               <Route path="/settings" element={<SettingsView />} />
               <Route path="*" element={<Navigate to="/jobs" replace />} />

@@ -207,3 +207,29 @@ class FeatureWeight(Base):
 
     feature: Mapped[str] = mapped_column(Text, primary_key=True)
     weight: Mapped[float] = mapped_column()
+
+
+class Applicant(Base):
+    """Single-row personal details used to fill application forms (id is always 1)."""
+
+    __tablename__ = "applicant"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    details: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    disabled_sites: Mapped[list[str]] = mapped_column(
+        JSON, default=lambda: ["linkedin.com", "naukri.com"]
+    )
+
+
+class Answer(Base):
+    """Saved answer to an application question, keyed by the normalised question."""
+
+    __tablename__ = "answers"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    question: Mapped[str] = mapped_column(Text)
+    key: Mapped[str] = mapped_column(Text, unique=True)
+    answer: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

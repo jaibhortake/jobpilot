@@ -37,3 +37,6 @@ classify = "anthropic/claude-haiku-5-5"
 groq = 7000
 ollama = 12000
 anthropic = 60000
+
+[apply]
+cv_path = 'E:\Job hunting\Jai_Bhortake_CV.pdf'

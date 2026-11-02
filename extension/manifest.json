@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "JobPilot Apply Assist",
+  "version": "0.1.0",
+  "description": "Fills job application forms from your JobPilot profile. You review and submit.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1:8000/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "action": { "default_popup": "popup.html", "default_title": "Apply Assist" }
+}
